@@ -11,7 +11,7 @@ theorem revRange_zero : revRange 0 = [] := rfl
 @[simp]
 theorem revRange_succ : revRange n.succ = n :: revRange n := rfl
 
-theorem revRange_eq_reverse_range : revRange n = (range n).reverse := by
+theorem revRange_def : revRange n = (range n).reverse := by
   induction n with simp [range_succ, *]
 
 /-- Tail-recursive version of `List.revRange`. -/
@@ -31,7 +31,7 @@ where go : Nat → Nat → List Nat → List Nat
 /-- Lists all elements of `Fin n`, in decreasing order. -/
 def revFinRange (n : Nat) : List (Fin n) := ofFn Fin.rev
 
-theorem revFinRange_eq_reverse_finRange : revFinRange n = (finRange n).reverse :=
+theorem revFinRange_def : revFinRange n = (finRange n).reverse :=
   ext_get (by simp [revFinRange]) fun i h h' => by simp [revFinRange, Fin.rev]; omega
 
 /-- Returns the list `[stop+(len-1)*step, ..., stop+step, stop]`, with length `len` and decreasing
@@ -41,7 +41,7 @@ def revRange' (stop len : Nat) (step := 1) : List Nat := go len stop [] where
   | 0,   _, acc => acc
   | l+1, s, acc => go l (s + step) (s :: acc)
 
-theorem revRange'_eq_reverse_range' {stop len step : Nat} :
+theorem revRange'_def {stop len step : Nat} :
     revRange' stop len step = (range' stop len step).reverse := by
   suffices ∀ l i, revRange'.go step l (stop + step * i) (range' stop i step).reverse
     = (range' stop (i + l) step).reverse by rw [← len.zero_add, ← this]; simp; rfl

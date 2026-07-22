@@ -3,13 +3,13 @@ namespace Array
 /-- Construct an array of numbers from `n-1` to `0` in decreasing order. -/
 def revRange (n : Nat) : Array Nat := ofFn (n := n) fun i => i.rev
 
-theorem revRange_eq_reverse_range : revRange n = (range n).reverse := by
+theorem revRange_def : revRange n = (range n).reverse := by
   ext <;> simp [revRange]; omega
 
 /-- Construct an array of all elements of `Fin n` in decreasing order. -/
 def revFinRange (n : Nat) : Array (Fin n) := ofFn Fin.rev
 
-theorem revFinRange_eq_reverse_finRange : revFinRange n = (Array.finRange n).reverse := by
+theorem revFinRange_def : revFinRange n = (Array.finRange n).reverse := by
   ext <;> simp [revFinRange]; omega
 
 /-- Construct an array of numbers of size `len`, decreasing by `step` at each element and ending
@@ -17,7 +17,7 @@ at `stop`, that is, `#[stop+(len-1)*step, ..., stop+step, stop]`. -/
 def revRange' (stop len : Nat) (step := 1) : Array Nat :=
   ofFn (n := len) fun i => stop + step * (len - 1) - step * i
 
-theorem revRange'_eq_reverse_range' {stop len step} :
+theorem revRange'_def {stop len step} :
     revRange' stop len step = (range' stop len step).reverse := by
   ext i h <;> simp [revRange']; simp [revRange'] at h
   rw [Nat.add_sub_assoc, ← Nat.mul_sub]; apply Nat.mul_le_mul_left; omega
