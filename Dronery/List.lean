@@ -17,7 +17,7 @@ theorem revRange_def : revRange n = (range n).reverse := by
 /-- Tail-recursive version of `List.revRange`. -/
 def revRangeTR (n : Nat) : List Nat :=
   go n 0 []
-where go : Nat → Nat → List Nat → List Nat
+where @[inline] go : Nat → Nat → List Nat → List Nat
 | 0,   _, acc => acc
 | n+1, i, acc => go n (i+1) (i :: acc)
 
@@ -37,7 +37,7 @@ theorem revFinRange_def : revFinRange n = (finRange n).reverse :=
 /-- Returns the list `[stop+(len-1)*step, ..., stop+step, stop]`, with length `len` and decreasing
 by `step` at each element. -/
 def revRange' (stop len : Nat) (step := 1) : List Nat := go len stop [] where
-  go : Nat → Nat → List Nat → List Nat
+  @[inline] go : Nat → Nat → List Nat → List Nat
   | 0,   _, acc => acc
   | l+1, s, acc => go l (s + step) (s :: acc)
 
