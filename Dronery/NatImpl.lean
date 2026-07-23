@@ -125,21 +125,22 @@ theorem factorial_mul_stirlingSecond_eq_sum :
   · congr; ext f; simp [mem_inf]; grind
   · simp_all [card_compl]
 
-def stirlingSecondImpl (n k : ℕ) := if n < k then 0 else (go (k + 1) 1 0).toNat / k ! where
+/-- The number of surjections from `Fin n` (or any other `n`-element type) to `Fin k`
+(or any other `k`-element type), equal to `k ! * stirlingSecond n k` -/
+def surjpow (n k : ℕ) := if n < k then 0 else (go (k + 1) 1 0).toNat where
   @[inline] go : (i : ℕ) → (nkCi : ℤ) → (acc : ℤ) → ℤ
   | 0, _, acc => acc
   | i+1, nkCi, acc => go i (-nkCi * i / (k - i + 1)) (acc + nkCi * i ^ n)
 
-@[csimp]
-theorem stirlingSecond_eq_stirlingSecondImpl : stirlingSecond = stirlingSecondImpl := by
-  ext n k; unfold stirlingSecondImpl; split
-  · exact stirlingSecond_eq_zero_of_lt ‹_›
-  suffices ∀ i ≤ k, ∀ acc, stirlingSecondImpl.go n k (i + 1) ((-1) ^ (k - i) * choose k i) acc =
+theorem surjpow_def : surjpow n k = k ! * stirlingSecond n k := by
+  unfold surjpow; split
+  · rw [stirlingSecond_eq_zero_of_lt ‹_›, mul_zero]
+  suffices ∀ i ≤ k, ∀ acc, surjpow.go n k (i + 1) ((-1) ^ (k - i) * choose k i) acc =
       acc + ∑ j ∈ range (i + 1), (-1 : ℤ) ^ (k - j) * choose k j * j ^ n by
-    symm; apply Nat.div_eq_of_eq_mul_right (k.factorial_pos); convert Int.toNat_natCast _
-    rw [cast_mul, factorial_mul_stirlingSecond_eq_sum]; convert this k le_rfl 0 <;> simp
-  intro i hi acc; induction i generalizing acc with unfold stirlingSecondImpl.go
-  | zero => unfold stirlingSecondImpl.go; simp
+    convert Int.toNat_natCast _; rw [cast_mul, factorial_mul_stirlingSecond_eq_sum]
+    convert this k le_rfl 0 <;> simp
+  intro i hi acc; induction i generalizing acc with unfold surjpow.go
+  | zero => unfold surjpow.go; simp
   | succ i ih =>
     rw [sum_range_succ, add_left_comm, ← add_comm (acc + _)]; convert ih (le_of_succ_le hi) _
     rw [cast_add_one, ← sub_sub, sub_add_cancel, ← neg_mul, ← neg_one_mul, ← Int.pow_succ',
@@ -148,12 +149,23 @@ theorem stirlingSecond_eq_stirlingSecondImpl : stirlingSecond = stirlingSecondIm
     rw [mul_assoc, ← cast_add_one, ← cast_mul, choose_succ_right_eq, cast_mul, mul_assoc,
       cast_sub (le_of_succ_le hi)]
 
+theorem Fintype.card_fun_surjective [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β] :
+    #{f : α → β | f.Surjective} = surjpow (card α) (card β) := by
+  rw [surjpow_def, ← Fin.card_fun_surjective]
+  apply Finset.card_equiv ((equivFin α).arrowCongr (equivFin β)); simp; intro f
+  apply (equivFin β).forall_congr; simp [(equivFin α).exists_congr_left]
+
+def stirlingSecondImpl (n k : ℕ) := surjpow n k / k !
+
+@[csimp]
+theorem stirlingSecond_eq_stirlingSecondImpl : stirlingSecond = stirlingSecondImpl := by
+  ext n k; rw [stirlingSecondImpl, surjpow_def, mul_div_cancel_left₀ _ (k.factorial_ne_zero)]
+
 /-- to be proven later -/
 theorem stirlingFirst_eq_sum (hk : k ≠ 0) : stirlingFirst n k =
     ∑ i ∈ range (n - k + 1), ((-1) ^ (n - k - i) * choose (n + i - 1) (k - 1) *
       choose (2 * n - k) (n + i) * stirlingSecond (n - k + i) i : ℤ) := by sorry
 
-opaque idk : ℤ
 def stirlingFirstImpl (n k : ℕ) :=
   if k = 0 then n.stirlingFirst k else if n < k then 0 else
     (go (n - k + 1) (choose (2 * n - k - 1) (k - 1)) 0).toNat where
