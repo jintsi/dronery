@@ -1,5 +1,4 @@
 import Mathlib.Data.Nat.BinaryRec
-import Batteries.Tactic.Alias
 
 /-- Number of bits needed to write `n`, with `bitLength 0 = 0`. -/
 def Nat.bitLength (n : Nat) := if n = 0 then 0 else n.log2 + 1
@@ -13,7 +12,7 @@ theorem Nat.lt_two_pow_bitLength (n : Nat) : n < 2 ^ n.bitLength := by
 `n`'s binary representation: 0 1 0 2 0 1 0 3 0 1 0 2 0 1 0 4... (A007814, starting from n = 1). -/
 def Nat.ruler (n : Nat) : Nat := n.binaryRec 0 fun b _ ih => bif b then 0 else ih + 1
 
-alias A007814 := Nat.ruler
+notation "A007814" => Nat.ruler
 
 theorem Nat.ruler_zero : ruler 0 = 0 := rfl
 
@@ -32,4 +31,4 @@ theorem Nat.toNat_toBitVec {n : Nat} : n.toBitVec.toNat = n := rfl
 
 def Nat.binaryRev (n : Nat) := n.toBitVec.reverse.toNat
 
-alias A030101 := Nat.binaryRev
+notation "A030101" => Nat.binaryRev
