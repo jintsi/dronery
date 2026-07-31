@@ -1,3 +1,5 @@
+import Mathlib.Algebra.Group.Basic
+
 namespace List
 
 /-- Lists the numbers from `n-1` to `0`, in decreasing order. -/
@@ -50,8 +52,18 @@ theorem revRange'_def {stop len step : Nat} :
   | succ l ih => rw [revRange'.go, l.add_comm, ← i.add_assoc, ← ih, Nat.mul_add_one, Nat.add_assoc,
     range'_concat]; simp
 
-/-- Computes the sum of `f` applied to elements of the  list. -/
-abbrev sumOn [Add β] [Zero β] (f : α → β) (l : List α) := (l.map f).sum
+/-- Computes the sum of `f` applied to elements of the list. Note that it does a left fold,
+as opposed to regular `List.sum` which does a right fold. -/
+def sumOn [Add β] [Zero β] (f : α → β) := List.foldl (fun acc a => acc + f a) 0
+
+theorem sumOn_def [Add β] [Zero β] {f : α → β} {l : List α} :
+    l.sumOn f = (l.map f).foldl (· + ·) 0 := foldl_map.symm
+
+@[simp]
+theorem sumOn_eq_sum_map [AddMonoid β] {f : α → β} {l : List α} : l.sumOn f = (l.map f).sum := by
+  rw [sumOn_def]; symm; exact sum_eq_foldl
+
+theorem sumOn_id [AddMonoid α] {l : List α} : l.sumOn id = l.sum := by simp
 
 /-- Bitwise OR (`|||`) of all elements of `l` (assumes `0` is the identity). -/
 abbrev lany [OrOp α] [Zero α] (l : List α) := l.foldl (· ||| ·) 0

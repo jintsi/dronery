@@ -1,3 +1,5 @@
+import Mathlib.Algebra.Group.Basic
+
 namespace Array
 
 /-- Construct an array of numbers from `n-1` to `0` in decreasing order. -/
@@ -22,8 +24,18 @@ theorem revRange'_def {stop len step} :
   ext i h <;> simp [revRange']; simp [revRange'] at h
   rw [Nat.add_sub_assoc, ← Nat.mul_sub]; apply Nat.mul_le_mul_left; omega
 
-/-- Computes the sum of `f` applied to elements of the array. -/
-abbrev sumOn [Add β] [Zero β] (f : α → β) (as : Array α) := (as.map f).sum
+/-- Computes the sum of `f` applied to elements of the array. Note that it does a left fold,
+as opposed to `Array.sum` which does a right fold. -/
+abbrev sumOn [Add β] [Zero β] (f : α → β) := Array.foldl (fun acc a => acc + f a) 0
+
+theorem sumOn_def [Add β] [Zero β] {f : α → β} {as : Array α} :
+    as.sumOn f = (as.map f).foldl (· + ·) 0 := foldl_map.symm
+
+@[simp]
+theorem sumOn_eq_sum_map [AddMonoid β] {f : α → β} {as : Array α} : as.sumOn f = (as.map f).sum := by
+  rw [sumOn_def]; symm; exact sum_eq_foldl
+
+theorem sumOn_id [AddMonoid α] {as : Array α} : as.sumOn id = as.sum := by simp
 
 /-- Bitwise OR (`|||`) of all elements of `as` (assumes `0` is the identity). -/
 abbrev lany [OrOp α] [Zero α] (as : Array α) := as.foldl (· ||| ·) 0
