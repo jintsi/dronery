@@ -1,3 +1,5 @@
+import Batteries.Data.List.Lemmas
+import Mathlib.Data.List.Basic
 import Mathlib.Algebra.Group.Basic
 
 namespace List
@@ -52,8 +54,21 @@ theorem revRange'_def {stop len step : Nat} :
   | succ l ih => rw [revRange'.go, l.add_comm, ← i.add_assoc, ← ih, Nat.mul_add_one, Nat.add_assoc,
     range'_concat]; simp
 
+/-- Applies a function that returns an `Option` to each element of a list along with the index at
+which that element is found, collecting the non-`none` values. -/
+@[inline]
+def filterMapIdx (f : ℕ → α → Option β) (as : List α) : List β :=
+  as.foldrIdx (fun i a bs => (f i a).toList ++ bs) []
+
+@[simp]
+theorem filterMapIdx_eq_filterMap_zipIdx {f : ℕ → α → Option β} {as : List α} :
+    as.filterMapIdx f = as.zipIdx.filterMap fun (a, i) => f i a := by
+  simp [filterMapIdx, foldrIdx_eq_foldr_zipIdx, filterMap_eq_flatMap_toList, ← flatMap_id,
+    flatMap_map]
+
 /-- Computes the sum of `f` applied to elements of the list. Note that it does a left fold,
 as opposed to regular `List.sum` which does a right fold. -/
+@[specialize]
 def sumOn [Add β] [Zero β] (f : α → β) := List.foldl (fun acc a => acc + f a) 0
 
 theorem sumOn_def [Add β] [Zero β] {f : α → β} {l : List α} :
