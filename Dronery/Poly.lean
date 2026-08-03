@@ -1,314 +1,91 @@
-import Mathlib.Data.List.GetD
-import Mathlib.Algebra.Module.Defs
+import Dronery.LFinsupp
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Algebra.BigOperators.NatAntidiagonal
-import Mathlib.Algebra.BigOperators.GroupWithZero.Action
-import Mathlib.Algebra.Polynomial.Degree.Defs
 import Mathlib.Algebra.Polynomial.Coeff
-import Mathlib.Data.List.ToFinsupp
-import Mathlib.Data.List.DropRight
 import Dronery.List
 
 /-! # Computable polynomials -/
 
-def CPoly (R) [Zero R] := Quot (fun x y : List R => y = x.concat 0)
+abbrev CPoly (R) [Zero R] := LFinsupp R
 
 namespace CPoly
 
+open LFinsupp
+
 scoped notation:9000 R "[X]" => CPoly R
 
-def mk [Zero R] (l : List R) : R[X] := Quot.mk _ l
+abbrev mk [Zero R] (l : List R) : R[X] := LFinsupp.mk l
+
+theorem mk_def [Zero R] {l : List R} : mk l = LFinsupp.mk l := rfl
 
 @[cases_eliminator, elab_as_elim]
-theorem casesOn [Zero R] {motive : R[X] → Prop} (p : R[X]) (mk : (l : List R) → motive (mk l)) : motive p :=
-  p.inductionOn mk
+theorem casesOn [Zero R] {motive : R[X] → Prop} (p : R[X]) (mk : (l : List R) → motive (mk l)) :
+    motive p := p.inductionOn mk
 
 theorem eq_iff [Zero R] {x y : List R} : mk x = mk y ↔
-    ∃ n, x = y ++ List.replicate n 0 ∨ y = x ++ List.replicate n 0 := by
-  unfold mk CPoly; rw [Quot.eq]; constructor
-  · intro h; induction h with
-    | rel x y h => use 1; right; simpa using h
-    | refl x => simp
-    | symm x y h ih => exact ih.imp fun _ => Or.symm
-    | trans x y z h h' ih ih' =>
-      rcases ih with ⟨n, rfl | rfl⟩
-      · rcases ih' with ⟨m, rfl | rfl⟩ <;> simp
-        by_cases h : n ≤ m
-        · use m - n; omega
-        · use n - m; omega
-      · rcases ih' with ⟨m, ih | rfl⟩; swap; simp
-        by_cases h : n ≤ m
-        · use m - n; left; rw [← Nat.sub_add_cancel h] at ih
-          simpa [← List.replicate_append_replicate, ← List.append_assoc] using ih
-        · use n - m; right; rw [← Nat.sub_add_cancel (Nat.le_of_not_ge h)] at ih
-          symm; simpa [← List.replicate_append_replicate, ← List.append_assoc] using ih
-  · rintro ⟨n, rfl | rfl⟩
-    · induction n with
-      | zero => simp; exact .refl y
-      | succ n ih =>
-        rw [List.replicate_succ', ← List.append_assoc]
-        exact .trans _ _ _ (symm <| .rel _ _ List.concat_eq_append.symm) ih
-    · induction n with
-      | zero => simp; exact .refl x
-      | succ n ih =>
-        rw [List.replicate_succ', ← List.append_assoc]
-        exact ih.trans _ _ _ (.rel _ _ List.concat_eq_append.symm)
+    ∃ n, x = y ++ List.replicate n 0 ∨ y = x ++ List.replicate n 0 := LFinsupp.eq_iff
 
 /-- `p.coeff n` is the coefficient of `X ^ n` in `p`. -/
-def coeff [Zero R] (p : R[X]) (n : ℕ) : R :=
-  p.liftOn (fun l => l.getD n 0) (by
-    intro a _ rfl; simp [List.getElem?_append, List.getElem?_singleton]; split_ifs
-    · rfl
-    · rw [List.getElem?_eq_none]; rfl; omega
-    · rw [List.getElem?_eq_none]; omega)
+def coeff [Zero R] (p : R[X]) (n : ℕ) : R := p n
+
+@[simp]
+theorem apply_eq_coeff [Zero R] {p : R[X]} : p n = p.coeff n := rfl
 
 @[simp]
 theorem coeff_mk [Zero R] {l : List R} : (mk l).coeff n = l.getD n 0 := rfl
 
 @[ext]
-theorem ext [Zero R] {p q : R[X]} : (∀ n, p.coeff n = q.coeff n) → p = q := by
-  cases p; cases q; rename_i p q; simp [eq_iff]; intro h
-  rcases Nat.le_total p.length q.length with (h' | h')
-  · use q.length - p.length; right; apply List.ext_getElem?; intro i; specialize h i
-    simp [getElem?_def, h', List.getElem_append] at ⊢ h; split_ifs at ⊢ h <;> simp_all
-  · use p.length - q.length; left; apply List.ext_getElem?; intro i; specialize h i
-    simp [getElem?_def, h', List.getElem_append] at ⊢ h; split_ifs at ⊢ h <;> simp_all
-
-instance [Zero R] : Zero R[X] := ⟨mk []⟩
-
-theorem zero_def [Zero R] : (0 : R[X]) = mk [] := rfl
-
-theorem zero_def' [Zero R] : (0 : R[X]) = mk [0] := Quot.sound rfl
+theorem ext [Zero R] {p q : R[X]} : (∀ n, p.coeff n = q.coeff n) → p = q :=
+  DFunLike.ext p q
 
 @[simp]
-theorem coeff_zero [Zero R] : (0 : R[X]).coeff n = 0 := by simp [zero_def]
+theorem coeff_zero [Zero R] : (0 : R[X]).coeff n = 0 := zero_apply n
 
-instance [Zero R] [One R] : One R[X] := ⟨mk [1]⟩
+instance [Zero R] [One R] : One R[X] := ⟨single 0 1⟩
 
-theorem one_def [Zero R] [One R] : (1 : R[X]) = mk [1] := rfl
+theorem one_def [Zero R] [One R] : (1 : R[X]) = single 0 1 := rfl
 
-theorem coeff_one [Zero R] [One R] : (1 : R[X]).coeff n = if n = 0 then 1 else 0 := by
-  simp [one_def, List.getElem?_singleton]; split <;> rfl
+theorem coeff_one [Zero R] [One R] : (1 : R[X]).coeff n = if n = 0 then 1 else 0 :=
+  single_apply
 
-def X [Zero R] [One R] : R[X] := mk [0, 1]
+def X [Zero R] [One R] : R[X] := single 1 1
 
-theorem X_def [Zero R] [One R] : (X : R[X]) = mk [0, 1] := rfl
-
-instance [Zero R] : Inhabited R[X] := ⟨0⟩
-
-instance [Zero R] [Nontrivial R] : Nontrivial R[X] where
-  exists_pair_ne := by
-    have ⟨x, y, h⟩ := exists_pair_ne R
-    use mk [x], mk [y]; simp [CPoly.ext_iff]; use 0; simpa
-
-instance [Zero R] [Subsingleton R] : Unique R[X] where
-  uniq p := by ext; apply Subsingleton.elim
-
-instance [Zero R] [DecidableEq R] : DecidableEq R[X] :=
-  fun p q => Quot.recOnSubsingleton₂ p q decRel where
-  decRel : (l l' : List R) → Decidable (mk l = mk l')
-  | [], l => decidable_of_iff (∀ x ∈ l, x = 0) (by
-    simp [eq_iff, ← List.eq_replicate_length]; constructor
-    · intro h; use l.length; right; exact h
-    · rintro ⟨n, ⟨rfl, rfl⟩ | rfl⟩ <;> simp)
-  | l, [] => decidable_of_iff (∀ x ∈ l, x = 0) (by
-    simp [eq_iff, ← List.eq_replicate_length]; constructor
-    · intro h; use l.length; left; exact h
-    · rintro ⟨n, rfl | ⟨rfl, rfl⟩⟩ <;> simp)
-  | a :: l, b :: l' => match decEq a b with
-    | isFalse nab => isFalse (by simp [CPoly.ext_iff]; use 0; simpa)
-    | isTrue hab => match decRel l l' with
-      | isFalse h => isFalse (by simpa [eq_iff, hab] using h)
-      | isTrue h => isTrue (by simpa [eq_iff, hab] using h)
-
-/-! ## Addition -/
-
-theorem _root_.List.zipWithAll_of_le {f : Option α → Option β → γ} (hab : a.length ≤ b.length) :
-    List.zipWithAll f a b = List.zipWith (fun x y => f (some x) (some y)) a b
-      ++ (b.drop (a.length)).map fun y => f none (some y) := by
-  induction a generalizing b with
-  | nil => simp
-  | cons x a ih => induction b with
-    | nil => simp at hab
-    | cons y b ih => simp_all
-
-theorem _root_.List.zipWithAll_of_ge {f : Option α → Option β → γ} (hab : b.length ≤ a.length) :
-    List.zipWithAll f a b = List.zipWith (fun x y => f (some x) (some y)) a b
-      ++ (a.drop (b.length)).map fun x => f (some x) none := by
-  induction a generalizing b with
-  | nil => simpa using hab
-  | cons x a ih => induction b with
-    | nil => simp
-    | cons y b ih => simp_all
+theorem X_def [Zero R] [One R] : (X : R[X]) = single 1 1 := rfl
 
 @[simp]
-theorem _root_.List.zipWithAll_of_eq {f : Option α → Option β → γ} (hab : a.length = b.length) :
-    List.zipWithAll f a b = List.zipWith (fun x y => f (some x) (some y)) a b := by
-  rw [List.zipWithAll_of_le (Nat.le_of_eq hab)]; simp [hab]
-
-instance [AddZeroClass R] : Add R[X] where
-  add := Quot.lift₂ (fun a b => mk <| .zipWithAll (fun x y => x.getD 0 + y.getD 0) a b) (by
-    intro a b _ rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all) (by
-    intro a _ b rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all)
-
-theorem add_def [AddZeroClass R] {a b : List R} :
-    mk a + mk b = mk (.zipWithAll (·.getD 0 + ·.getD 0) a b) := rfl
+theorem coeff_add [AddZeroClass R] {p q : R[X]} : (p + q).coeff n = p.coeff n + q.coeff n :=
+  add_apply p q n
 
 @[simp]
-theorem coeff_add [AddZeroClass R] {p q : R[X]} : (p + q).coeff n = p.coeff n + q.coeff n := by
-  cases p; cases q; simp [add_def, List.getElem?_zipWithAll]; split <;> simp_all
+theorem coeff_neg [NegZeroClass R] {p : R[X]} : (-p).coeff n = -p.coeff n := neg_apply p n
+
+@[simp]
+theorem coeff_sub [SubNegZeroMonoid R] {p q : R[X]} : (p - q).coeff n = p.coeff n - q.coeff n :=
+  sub_apply p q n
 
 theorem coeff_list_sum [AddZeroClass R] {l : List R[X]} :
     l.sum.coeff n = (l.map fun p => p.coeff n).sum := by induction l <;> simp_all
 
-instance [AddZeroClass R] : AddZeroClass R[X] where
-  zero_add p := by ext; simp
-  add_zero p := by ext; simp
-
-instance [AddMonoid R] : AddMonoid R[X] where
-  add_assoc p q r := by ext; simp [add_assoc]
-  nsmul n := Quot.lift (fun l => mk (l.map (n • ·))) (by intro l _ rfl; apply Quot.sound; simp)
-  nsmul_zero p := by
-    cases p; rename_i l; change mk (l.map (0 • ·)) = mk []; simp [List.map_const', eq_iff]
-  nsmul_succ n p := by
-    cases p; rename_i l; change mk (l.map ((n + 1) • ·)) = mk (l.map (n • ·)) + mk l
-    simp [succ_nsmul, add_def, List.zipWith_map_left];
-
-instance [AddCommMonoid R] : AddCommMonoid R[X] where
-  add_comm p q := by ext; simp [add_comm]
-
 instance [AddMonoidWithOne R] : AddMonoidWithOne R[X] where
-  natCast n := mk [n]
-  natCast_zero := by simp [zero_def']
-  natCast_succ := by simp [one_def, add_def]
+  natCast n := single 0 n
+  natCast_zero := by ext; simp
+  natCast_succ n := by ext; simp [one_def]
 
 instance [AddCommMonoidWithOne R] : AddCommMonoidWithOne R[X] where
 
-theorem natCast_def [AddMonoidWithOne R] {n : ℕ} : n = mk [(n : R)] := rfl
-
-instance [NegZeroClass R] : Neg R[X] := ⟨Quot.lift (fun l => mk (l.map (-·))) (by
-  intro a _ rfl; apply Quot.sound; simp)⟩
-
-theorem neg_def [NegZeroClass R] {l : List R} : -mk l = mk (l.map (-·)) := rfl
-
-@[simp]
-theorem coeff_neg [NegZeroClass R] {p : R[X]} : (-p).coeff n = -p.coeff n := by
-  cases p; simp [neg_def, ← Option.getD_map (α := R) (-·)]
-
-instance [NegZeroClass R] : NegZeroClass R[X] where
-  neg_zero := by ext; simp
-
-instance [SubNegZeroMonoid R] : Sub R[X] where
-  sub := Quot.lift₂ (fun a b => mk <| .zipWithAll (fun x y => x.getD 0 - y.getD 0) a b) (by
-    intro a b _ rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all) (by
-    intro a _ b rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all)
-
-theorem sub_def [SubNegZeroMonoid R] {a b : List R} :
-    mk a - mk b = mk (.zipWithAll (·.getD 0 - ·.getD 0) a b) := rfl
-
-@[simp]
-theorem coeff_sub [SubNegZeroMonoid R] {p q : R[X]} : (p - q).coeff n = p.coeff n - q.coeff n := by
-  cases p; cases q; simp [sub_def, List.getElem?_zipWithAll]; split <;> simp_all
-
-instance [SubtractionMonoid R] : SubtractionMonoid R[X] where
-  sub_eq_add_neg p q := by ext; simp [sub_eq_add_neg]
-  zsmul z := Quot.lift (fun l => mk (l.map (z • ·))) (by
-    intro l _ rfl; apply Quot.sound; simp)
-  zsmul_zero' p := by
-    cases p; rename_i l; change mk (l.map (0 • ·)) = mk []; simp [List.map_const', eq_iff]
-  zsmul_succ' n p := by
-    cases p; rename_i l; change mk (l.map ((n.succ : ℤ) • ·)) = mk (l.map ((n : ℤ) • ·)) + mk l
-    simp_rw [SubNegMonoid.zsmul_succ']; simp [add_def, List.zipWith_map_left]
-  zsmul_neg' n p := by
-    cases p; rename_i l; change mk (l.map (Int.negSucc n • ·)) = mk ((l.map _).map _)
-    simp [-Int.natCast_add, -Nat.cast_add]; rfl
-  neg_neg p := by ext; simp
-  neg_add_rev p q := by ext; simp
-  neg_eq_of_add p q h := by
-    simp [CPoly.ext_iff] at h; ext n; simpa using neg_eq_of_add_eq_zero_right (h n)
-
-instance [SubtractionCommMonoid R] : SubtractionCommMonoid R[X] where
-
-instance [AddGroup R] : AddGroup R[X] where
-  neg_add_cancel p := by ext; simp
-
-instance [AddCommGroup R] : AddCommGroup R[X] where
+theorem natCast_def [AddMonoidWithOne R] {n : ℕ} : (n : R[X]) = single 0 (n : R) := rfl
 
 instance [AddGroupWithOne R] : AddGroupWithOne R[X] where
-  intCast z := mk [z]
+  intCast z := single 0 z
   intCast_ofNat n := by simp [natCast_def]
-  intCast_negSucc n := by rw [natCast_def]; simp [neg_def]
+  intCast_negSucc n := by rw [natCast_def]; ext; simp [-neg_add_rev]
 
 instance [AddCommGroupWithOne R] : AddCommGroupWithOne R[X] where
 
-theorem intCast_def [AddGroupWithOne R] {z : ℤ} : (z : R[X]) = mk [(z : R)] := rfl
-
-/-! ## Scalar multiplication -/
-
-instance [Zero R] [SMulZeroClass S R] : SMul S R[X] where
-  smul c := Quot.lift (fun l => mk (l.map (c • ·))) (by intro a _ rfl; apply Quot.sound; simp)
-
-theorem smul_def [Zero R] [SMulZeroClass S R] {c : S} {l : List R} :
-    c • mk l = mk (l.map (c • ·)) := rfl
+theorem intCast_def [AddGroupWithOne R] {z : ℤ} : (z : R[X]) = single 0 (z : R) := rfl
 
 @[simp]
 theorem coeff_smul [Zero R] [SMulZeroClass S R] {c : S} {p : R[X]} :
-    (c • p).coeff n = c • p.coeff n := by cases p; simp [smul_def, ← Option.getD_map (β := R)]
-
-instance [Zero R] [SMulZeroClass S R] : SMulZeroClass S R[X] where
-  smul_zero c := by ext; simp
-
-instance [Zero R] [SMulZeroClass S R] [FaithfulSMul S R] : FaithfulSMul S R[X] where
-  eq_of_smul_eq_smul h := eq_of_smul_eq_smul fun a : R => by
-    simpa [smul_def, eq_iff, ← or_and_right, or_iff_left_of_imp Eq.symm] using h (mk [a])
-
-instance [AddZeroClass R] [DistribSMul S R] : DistribSMul S R[X] where
-  smul_add c p q := by ext; simp [smul_add]
-
-instance [Monoid S] [AddMonoid R] [DistribMulAction S R] : DistribMulAction S R[X] where
-  mul_smul c d p := by ext; simp [mul_smul]
-  one_smul p := by ext; simp
-  smul_zero := smul_zero
-  smul_add := smul_add
-
-instance [Zero S] [Zero R] [SMulWithZero S R] : SMulWithZero S R[X] where
-  zero_smul p := by ext; simp
-
-instance [MonoidWithZero S] [Zero R] [MulActionWithZero S R] : MulActionWithZero S R[X] where
-  mul_smul c d p := by ext; simp [mul_smul]
-  one_smul p := by ext; simp
-  smul_zero := smul_zero
-  zero_smul := zero_smul S
-
-instance [Semiring S] [AddCommMonoid R] [Module S R] : Module S R[X] where
-  add_smul c d p := by ext; simp [add_smul]
-  zero_smul := zero_smul S
-
-instance [Zero R] [SMulZeroClass S₁ R] [SMulZeroClass S₂ R] [SMulCommClass S₁ S₂ R] :
-    SMulCommClass S₁ S₂ R[X] where
-  smul_comm c d p := by ext; simp [smul_comm]
-
-instance [Zero R] [SMul S₁ S₂] [SMulZeroClass S₁ R] [SMulZeroClass S₂ R] [IsScalarTower S₁ S₂ R] :
-    IsScalarTower S₁ S₂ R[X] where
-  smul_assoc c d p := by ext; simp
-
-instance [Zero R] [SMulZeroClass S R] [SMulZeroClass Sᵐᵒᵖ R] [IsCentralScalar S R] :
-    IsCentralScalar S R[X] where
-  op_smul_eq_smul c p := by ext; simp
-
-instance [Semiring S] [AddCommMonoid R] [Module S R] [Module.IsTorsionFree S R] :
-    Module.IsTorsionFree S R[X] where
-  isSMulRegular c h p q := by simp [CPoly.ext_iff]; intro h' n; exact h.isSMulRegular (h' n)
-
-/-! ## Multiplication -/
+    (c • p).coeff n = c • p.coeff n := smul_apply c p n
 
 /-- `p <<< n` is defined as `p * X ^ n`, analogous to how `n <<< m = n * 2 ^ m`. -/
 def shiftLeft [Zero R] (p : R[X]) : ℕ → R[X]
@@ -330,7 +107,7 @@ theorem coeff_shiftLeft [Zero R] {p : R[X]} :
 
 @[simp]
 theorem zero_shiftLeft [Zero R] {n : ℕ} : (0 : R[X]) <<< n = 0 := by
-  simp [zero_def, shiftLeft_mk, eq_iff]
+  ext; simp [coeff_shiftLeft]
 
 @[simp]
 theorem shiftLeft_zero [Zero R] {p : R[X]} : p <<< 0 = p := rfl
@@ -382,7 +159,7 @@ instance [NonUnitalSemiring R] : NonUnitalSemiring R[X] where
     | succ n ih => simp [Nat.sum_antidiagonal_succ, sum_add_distrib, add_assoc, ih]
 
 instance [NonAssocSemiring R] : NonAssocSemiring R[X] where
-  one_mul p := by cases p; simp [one_def, mk_mul, smul_def]
+  one_mul p := by cases p; simp [one_def, mk_mul, single_def]; ext; simp
   mul_one c := by
     ext; simp [coeff_mul, coeff_one]; rw [← Finset.Nat.sum_antidiagonal_swap]
     simp [Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
@@ -414,58 +191,36 @@ instance [NonAssocCommRing R] : NonAssocCommRing R[X] where
 instance [CommRing R] : CommRing R[X] where
 
 instance [AddMonoidWithOne R] [CharZero R] : CharZero R[X] where
-  cast_injective n m := by simp [natCast_def, CPoly.ext_iff]; intro h; simpa using h 0
+  cast_injective n m := by
+    simp [natCast_def, CPoly.ext_iff]; intro h; simpa [← apply_eq_coeff] using h 0
 
 instance [AddMonoidWithOne R] [CharP R p] : CharP R[X] p where
   cast_eq_zero_iff n := by
-    simp [natCast_def, zero_def, eq_iff, List.eq_replicate_iff, CharP.cast_eq_zero_iff R]
+    simp [natCast_def, ← single_zero 0, -single_zero, CharP.cast_eq_zero_iff]
 
 instance [NonUnitalNonAssocSemiring R] [DistribSMul S R] [IsScalarTower S R R] :
     IsScalarTower S R[X] R[X] where
   smul_assoc c p q := by ext; simp [coeff_mul, Finset.smul_sum, smul_mul_assoc]
 
-def toPolynomial [Semiring R] [DecidableEq R] : R[X] → Polynomial R :=
-  Quot.lift (fun l => ⟨⟨l.toFinsupp⟩⟩) (by
-    intro l _ rfl; simp [List.toFinsupp_concat_eq_toFinsupp_add_single])
-
-@[simp]
-theorem coeff_toPolynomial [Semiring R] [DecidableEq R] {p : R[X]} {n : ℕ} :
-    p.toPolynomial.coeff n = p.coeff n := by
-  cases p; rename_i l; simp [toPolynomial]; simp [mk]
-
-theorem _root_.WithBot.succ_le_iff [Preorder α] [OrderBot α] [SuccOrder α] [NoMaxOrder α]
-    (x : WithBot α) (y : α) : x.succ ≤ y ↔ x < y := by
-  rw [← WithBot.coe_le_coe, WithBot.succ_eq_succ, Order.succ_le_iff]
-
--- just for completeness
-theorem _root_.WithTop.le_pred_iff [Preorder α] [OrderTop α] [PredOrder α] [NoMinOrder α]
-    (x : α) (y : WithTop α) : x ≤ y.pred ↔ x < y := by
-  rw [← WithTop.coe_le_coe, WithTop.pred_eq_pred, Order.le_pred_iff]
-
-@[simps]
-def equivPolynomial [Semiring R] [DecidableEq R] : R[X] ≃+* Polynomial R where
-  toFun := toPolynomial
-  invFun P := mk ((List.range P.degree.succ).map P.coeff)
-  left_inv p := by
-    ext n; simp [Option.getD_eq_iff]; by_cases! h : n < p.toPolynomial.degree.succ <;> simp [h]
-    rw [WithBot.succ_le_iff] at h; convert_to _ < (n : WithBot ℕ) at h; rfl
-    rw [Polynomial.degree_lt_iff_coeff_zero] at h; symm; simpa using h n
-  right_inv P := by
-    ext n; simp [Option.getD_eq_iff]; by_cases! h : n < P.degree.succ <;> simp [h]
-    rw [WithBot.succ_le_iff] at h; convert_to _ < (n : WithBot ℕ) at h; rfl
-    rw [P.degree_lt_iff_coeff_zero] at h; exact (h n le_rfl).symm
+def equivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃+* Polynomial R where
+  toFun p := ⟨⟨equivFinsupp R p⟩⟩
+  invFun P := (equivFinsupp R).symm P.toFinsupp.coeff
+  left_inv p := by simp
+  right_inv P := by simp
   map_mul' p q := by ext; simp [coeff_mul, Polynomial.coeff_mul]
   map_add' p q := by ext; simp
 
-def out [Zero R] [DecidableEq R] : R[X] → List R :=
-  Quot.lift (fun l => l.rdropWhile (· = 0)) (by intro l _ rfl; simp)
+def linearEquivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃ₗ[R] Polynomial R where
+  toFun p := ⟨⟨equivFinsupp R p⟩⟩
+  map_add' p q := by ext; simp
+  map_smul' c p := by ext; simp
+  invFun P := (equivFinsupp R).symm P.toFinsupp.coeff
+  left_inv p := by simp
+  right_inv P := by simp
 
-theorem mk_out [Zero R] [DecidableEq R] (p : R[X]) : mk p.out = p := by
-  cases p; rename_i l; simp [out, eq_iff]; simp [mk]
-  use (l.rtakeWhile (· = 0)).length; right; symm
-  convert ← List.rdropWhile_append_rtakeWhile
-  simp [List.eq_replicate_length]; intro b hb
-  simpa using l.mem_rtakeWhile_imp hb
+def out [Zero R] [DecidableEq R] : R[X] → List R := LFinsupp.out
+
+theorem mk_out [Zero R] [DecidableEq R] (p : R[X]) : mk p.out = p := LFinsupp.mk_out p
 
 /-- Remove trailing zeros from the polynomial's internal representation. Propositionally it has no
 effect (see `trim_eq`), but may improve performance in algorithms. -/
@@ -487,3 +242,5 @@ instance repr [Zero R] [One R] [DecidableEq R] [Repr R] : Repr R[X] where
     | [(tp, t)] => if tp ≤ prec then t.paren else t
     | ts => (if prec ≥ 65 then .paren else id)
         (Std.Format.joinSep (ts.map Prod.snd) (" +" ++ .line)).fill
+
+#min_imports
