@@ -142,6 +142,12 @@ instance [Zero α] : Inhabited (LFinsupp α) := ⟨0⟩
 @[simp]
 theorem default_eq_zero [Zero α] : (default : LFinsupp α) = 0 := rfl
 
+@[simp]
+theorem single_eq_zero [Zero α] {a : α} : single n a = 0 ↔ a = 0 := by
+  constructor
+  · intro h; simpa using congr($h n)
+  · intro rfl; apply single_zero
+
 instance [Zero α] [Nontrivial α] : Nontrivial (LFinsupp α) where
   exists_pair_ne := by have ⟨x, y, h⟩ := exists_pair_ne α; use single 0 x, single 0 y; simpa
 
