@@ -5,6 +5,11 @@ import Dronery.List
 
 /-! # Computable univariate polynomials -/
 
+/-- `CPoly R` is the type of univariate polynomials over `R`, denoted `R[X]` within the `CPoly`
+namespace.
+
+Just like `Polynomial R`, it features `X` and `C` as constructors, but unlike `Polynomial R`, it is
+computable, represented internally as a `List` of coefficients (via `LFinsupp`). -/
 structure CPoly (R) [Semiring R] where
   coeff : LFinsupp R
 deriving Inhabited, DecidableEq
@@ -154,6 +159,11 @@ instance [Ring R] : AddCommGroupWithOne R[X] where
   intCast_ofNat n := by simp [natCast_def]
   intCast_negSucc n := by ext; simp
 
+theorem intCast_def [Ring R] (z : ℤ) : (z : R[X]) = ⟨single 0 z⟩ := rfl
+
+@[simp]
+theorem fun_coeff_intCast [Ring R] (z : ℤ) : coeff z = single 0 (z : R) := rfl
+
 instance [Semiring R] [DistribSMul S R] : DistribSMul S R[X] where
   smul_add c p q := by ext; simp
 
@@ -184,6 +194,9 @@ instance [Semiring R] [Semiring S] [Module S R] [Module.IsTorsionFree S R] :
 
 instance [Semiring R] [Subsingleton R] : Unique R[X] where
   uniq _ := ext fun _ ↦ Subsingleton.elim _ _
+
+instance [Semiring R] [Nontrivial R] : Nontrivial R[X] where
+  exists_pair_ne := by have ⟨f, g, h⟩ := exists_pair_ne (LFinsupp R); use ⟨f⟩, ⟨g⟩; simpa
 
 /-! ## Multiplication -/
 
@@ -311,7 +324,78 @@ theorem monomial_zero_right [Semiring R] : monomial n (0 : R) = 0 := by simp
 @[simp]
 theorem monomial_zero_one [Semiring R] : monomial 0 (1 : R) = 1 := rfl
 
-def equivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃+* Polynomial R where
+@[simp]
+theorem smul_monomial [Semiring R] [SMulZeroClass S R] {a : S} {b : R} :
+    a • monomial n b = monomial n (a • b) := by ext; simp
+
+theorem shiftLeft_monomial [Semiring R] {a : R} : monomial n a <<< i = monomial (n + i) a := by
+  ext k; simp [coeff_shiftLeft, single_apply]; grind
+
+theorem monomial_mul_monomial [Semiring R] {a b : R} :
+    monomial m a * monomial n b = monomial (m + n) (a * b) := by
+  simp [← mk_single]; rw [single_def, mk_mul]; simp
+  rw [(List.mapIdx_eq_replicate_iff (b := 0)).mpr (by simp)]; simp [shiftLeft_monomial, add_comm]
+
+@[simp]
+theorem monomial_pow [Semiring R] {a : R} : monomial n a ^ k = monomial (n * k) (a ^ k) := by
+  induction k <;> simp_all [pow_succ, monomial_mul_monomial, mul_add_one]
+
+/-- `C a` is the constant polynomial `a`. -/
+def C [Semiring R] : R →+* R[X] where
+  toFun := monomial 0
+  map_one' := monomial_zero_one
+  map_mul' := by simp [monomial_mul_monomial]
+  map_zero' := map_zero _
+  map_add' := map_add _
+
+@[simp]
+theorem monomial_zero_left [Semiring R] {a : R} : monomial 0 a = C a := rfl
+
+@[simp]
+theorem fun_coeff_C [Semiring R] {a : R} : (C a).coeff = single 0 a := rfl
+
+theorem coeff_C_zero [Semiring R] {a : R} : (C a).coeff 0 = a := rfl
+
+theorem coeff_C_of_ne_zero [Semiring R] {a : R} (h : n ≠ 0) : (C a).coeff n = 0 := by simp [h]
+
+theorem coeff_C_succ [Semiring R] {a : R} : (C a).coeff (n + 1) = 0 := rfl
+
+@[simp]
+theorem C_mul_eq_smul [Semiring R] {a : R} {p : R[X]} : C a * p = a • p := by
+  rw [← monomial_zero_left, ← mk_single, single_def, mk_mul]; simp
+
+/-- `X` is the polynomial indeterminate. -/
+def X [Semiring R] : R[X] := monomial 1 1
+
+@[simp]
+theorem monomial_one_one [Semiring R] : monomial 1 (1 : R) = X := rfl
+
+@[simp]
+theorem fun_coeff_X [Semiring R] : X.coeff = single 1 (1 : R) := rfl
+
+@[simp]
+theorem X_ne_zero [Semiring R] [Nontrivial R] : (X : R[X]) ≠ 0 := by
+  apply_fun fun p => p.coeff 1; simp
+
+example [Semiring R] : (X : R[X]) = ⟨.mk [0, 1]⟩ := rfl
+
+theorem monomial_one_right [Semiring R]: monomial n (1 : R) = X ^ n := by
+  simp [← monomial_one_one]
+
+theorem X_mul [Semiring R] {p : R[X]} : X * p = p * X := by
+  ext; simp [coeff_mul, single_apply]; rw [← Finset.Nat.sum_antidiagonal_swap]; simp
+
+theorem X_pow_mul [Semiring R] {p : R[X]} : X ^ n * p = p * X ^ n := by
+  induction n with
+  | zero => simp
+  | succ n ih => rw [pow_succ', mul_assoc, ih, ← mul_assoc, X_mul, mul_assoc]
+
+@[simp]
+theorem leftShift_eq_mul_X_pow [Semiring R] {p : R[X]} : p <<< n = p * X ^ n := by
+  rw [← X_pow_mul, ← monomial_one_right, ← mk_single, single_def, mk_mul]; simp
+  rw [(List.mapIdx_eq_replicate_iff (b := 0)).mpr (by simp)]; simp
+
+def equivPolynomial (R) [Semiring R] [DecidablePred fun x : R => x ≠ 0] : R[X] ≃+* Polynomial R where
   toFun p := ⟨⟨equivFinsupp R p.coeff⟩⟩
   invFun P := ⟨(equivFinsupp R).symm P.toFinsupp.coeff⟩
   left_inv p := by simp
@@ -319,7 +403,42 @@ def equivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃+* Polynomial R w
   map_mul' p q := by ext; simp [coeff_mul, Polynomial.coeff_mul]
   map_add' p q := by ext; simp
 
-def linearEquivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃ₗ[R] Polynomial R where
+@[simp]
+theorem coeff_equivPolynomial_apply [Semiring R] [DecidablePred fun x : R => x ≠ 0] {p : R[X]} :
+    (equivPolynomial R p).coeff n = p.coeff n := by simp [equivPolynomial]
+
+@[simp]
+theorem coeff_equivPolynomial_symm_apply [Semiring R]
+    [DecidablePred fun x : R => x ≠ 0] {p : Polynomial R} :
+    ((equivPolynomial R).symm p).coeff n = p.coeff n := by simp [equivPolynomial]; rfl
+
+@[simp]
+theorem equivPolynomial_monomial [Semiring R] [DecidablePred fun x : R => x ≠ 0] {a : R} :
+    equivPolynomial R (monomial n a) = Polynomial.monomial n a := by
+  ext; simp [Polynomial.coeff_monomial, single_apply]; congr 1; exact propext Eq.comm
+
+@[simp]
+theorem equivPolynomial_C [Semiring R] [DecidablePred fun x : R => x ≠ 0] {a : R} :
+    equivPolynomial R (C a) = Polynomial.C a := equivPolynomial_monomial
+
+@[simp]
+theorem equivPolynomial_X [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+    equivPolynomial R (X : R[X]) = Polynomial.X := equivPolynomial_monomial
+
+@[simp]
+theorem equivPolynomial_symm_monomial [Semiring R] [DecidablePred fun x : R => x ≠ 0] {a : R} :
+    (equivPolynomial R).symm (Polynomial.monomial n a) = monomial n a := by
+  ext; simp [Polynomial.coeff_monomial, single_apply]; congr 1; exact propext Eq.comm
+
+@[simp]
+theorem equivPolynomial_symm_C [Semiring R] [DecidablePred fun x : R => x ≠ 0] {a : R} :
+    (equivPolynomial R).symm (Polynomial.C a) = C a := equivPolynomial_symm_monomial
+
+@[simp]
+theorem equivPolynomial_symm_X [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+    (equivPolynomial R).symm Polynomial.X = (X : R[X]) := equivPolynomial_symm_monomial
+
+def linearEquivPolynomial (R) [Semiring R] [DecidablePred fun x : R => x ≠ 0] : R[X] ≃ₗ[R] Polynomial R where
   toFun p := ⟨⟨equivFinsupp R p.coeff⟩⟩
   map_add' p q := by ext; simp
   map_smul' c p := by ext; simp
@@ -327,19 +446,41 @@ def linearEquivPolynomial (R) [Semiring R] [DecidableEq R] : R[X] ≃ₗ[R] Poly
   left_inv p := by simp
   right_inv P := by simp
 
-def out [Semiring R] [DecidableEq R] (p : R[X]) : List R := p.coeff.out
+@[simp]
+theorem coe_linearEquivPolynomial_apply [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+    ⇑(linearEquivPolynomial R) = equivPolynomial R := rfl
 
-theorem mk_out [Semiring R] [DecidableEq R] (p : R[X]) : mk (.mk p.out) = p := by
+@[simp]
+theorem coe_linearEquivPolynomial_symm_apply [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+    ⇑(linearEquivPolynomial R).symm = (equivPolynomial R).symm := rfl
+
+instance [Semiring R] [NoZeroDivisors R] : NoZeroDivisors R[X] := by
+  classical exact (equivPolynomial R).noZeroDivisors
+
+instance [Semiring R] [IsCancelAdd R] [IsLeftCancelMulZero R] : IsLeftCancelMulZero R[X] := by
+  classical exact (equivPolynomial R).isLeftCancelMulZero_iff.mpr inferInstance
+
+instance [Semiring R] [IsCancelAdd R] [IsRightCancelMulZero R] : IsRightCancelMulZero R[X] := by
+  classical exact (equivPolynomial R).isRightCancelMulZero_iff.mpr inferInstance
+
+instance [Semiring R] [IsCancelAdd R] [IsCancelMulZero R] : IsCancelMulZero R[X] where
+
+instance [Semiring R] [IsCancelAdd R] [IsDomain R] : IsDomain R[X] where
+
+def out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : List R := p.coeff.out
+
+theorem mk_out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : mk (.mk p.out) = p := by
   simp [out, LFinsupp.mk_out]
 
 /-- Remove trailing zeros from the polynomial's internal representation. Propositionally it has no
 effect (see `trim_eq`), but may improve performance in algorithms. -/
-def trim [Semiring R] [DecidableEq R] (p : R[X]) : R[X] := mk (.mk p.out)
+def trim [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : R[X] := mk (.mk p.out)
 
 @[simp]
-theorem trim_eq [Semiring R] [DecidableEq R] (p : R[X]) : p.trim = p := p.mk_out
+theorem trim_eq [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : p.trim = p := p.mk_out
 
-instance repr [Semiring R] [DecidableEq R] [Repr R] : Repr R[X] where
+instance repr [Semiring R] [DecidablePred fun x : R => x = 0] [DecidablePred fun x : R => x = 1]
+    [Repr R] : Repr R[X] where
   reprPrec p prec :=
     let l : List (ℕ × Std.Format) := p.coeff.liftOn (fun l => l.filterMapIdx fun n (a : R) =>
       if a = 0 then none else some <| match n with
