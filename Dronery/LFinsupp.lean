@@ -4,28 +4,41 @@ import Mathlib.Algebra.Module.Equiv.Defs
 import Mathlib.Data.Finsupp.SMul
 import Mathlib.Data.List.DropRight
 
-theorem List.zipWithAll_of_le {f : Option α → Option β → γ} (hab : a.length ≤ b.length) :
-    zipWithAll f a b = zipWith (fun x y => f (some x) (some y)) a b
-      ++ (b.drop (a.length)).map fun y => f none (some y) := by
-  induction a generalizing b with
-  | nil => simp
-  | cons x a ih => induction b with
-    | nil => simp at hab
-    | cons y b ih => simp_all
+/-- Applies a function to the corresponding elements of both list, stopping when one of them runs
+out, applying `left` or `right` to the remainder of the second list if it's longer. -/
+def List.zipWithRest (f : α → β → γ) (left : List α → List γ) (right : List β → List γ) :
+    List α → List β → List γ
+| [], [] => []
+| as, [] => left as
+| [], bs => right bs
+| a :: as, b :: bs => f a b :: zipWithRest f left right as bs
 
-theorem List.zipWithAll_of_ge {f : Option α → Option β → γ} (hab : b.length ≤ a.length) :
-    zipWithAll f a b = zipWith (fun x y => f (some x) (some y)) a b
-      ++ (a.drop (b.length)).map fun x => f (some x) none := by
-  induction a generalizing b with
-  | nil => simpa using hab
-  | cons x a ih => induction b with
-    | nil => simp
-    | cons y b ih => simp_all
+def List.zipWithRestTR (f : α → β → γ) (left : List α → List γ) (right : List β → List γ)
+    (as : List α) (bs : List β) : List γ := go as bs [] where
+  go : List α → List β → List γ → List γ
+  | [], [], acc => acc.reverse
+  | as, [], acc => acc.reverseAux (left as)
+  | [], bs, acc => acc.reverseAux (right bs)
+  | a :: as, b :: bs, acc => go as bs (f a b :: acc)
+
+@[csimp] theorem List.zipWithRest_eq_zipWithRestTR : @zipWithRest = @zipWithRestTR := by
+  funext α β γ f left right as bs
+  let rec go : ∀ as bs acc, zipWithRestTR.go f left right as bs acc =
+      acc.reverse ++ zipWithRest f left right as bs
+  | [], [], acc => by simp [zipWithRestTR.go]; rfl
+  | a :: as, [], acc => by simp [zipWithRestTR.go, zipWithRest]
+  | [], b :: bs, acc => by simp [zipWithRestTR.go, zipWithRest]
+  | a :: as, b :: bs, acc => by simp [zipWithRestTR.go, go as bs, zipWithRest]
+  exact (go as bs []).symm
 
 @[simp]
-theorem List.zipWithAll_of_eq {f : Option α → Option β → γ} (hab : a.length = b.length) :
-    zipWithAll f a b = zipWith (fun x y => f (some x) (some y)) a b := by
-  rw [zipWithAll_of_le (Nat.le_of_eq hab)]; simp [hab]
+theorem List.zipWithRest_eq_zipWith_append {left : List α → List γ} {right : List β → List γ} :
+    ∀ as bs, zipWithRest f left right as bs = zipWith f as bs ++ if as.length = bs.length then []
+      else if bs.length < as.length then left (as.drop bs.length) else right (bs.drop as.length)
+| [], [] => rfl
+| a :: as, [] => rfl
+| [], b :: bs => rfl
+| a :: as, b :: bs => by rw [zipWithRest, zipWithRest_eq_zipWith_append]; simp
 
 /-- The type of finitely supported functions from `ℕ` to `α`, implemented as `List α` quotiented by
 the presence of trailing zeros. -/
@@ -172,16 +185,13 @@ instance [Zero α] [DecidableEq α] : DecidableEq (LFinsupp α) :=
       | isTrue h => isTrue (by simpa [eq_iff, hab] using h)
 
 instance [AddZeroClass α] : Add (LFinsupp α) where
-  add := Quot.lift₂ (fun a b => mk <| .zipWithAll (fun x y => x.getD 0 + y.getD 0) a b) (by
-    intro a b _ rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all) (by
-    intro a _ b rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all)
+  add := Quot.lift₂ (fun a b => mk <| .zipWithRest (· + ·) id id a b)
+    (by intro a b _ rfl; ext; simp [List.getElem?_append]; split_ifs <;> simp_all <;> grind)
+    (by intro a _ b rfl; ext; simp [List.getElem?_append]; split_ifs <;> simp_all <;> grind)
 
 theorem add_apply [AddZeroClass α] (f g : LFinsupp α) (n : ℕ) : (f + g) n = f n + g n := by
-  cases f; cases g; change Option.getD _ 0 = _; simp [List.getElem?_zipWithAll]; split <;> simp_all
+  cases f; cases g; change Option.getD _ _ = _; simp [List.getElem?_append, ite_and]
+  split_ifs <;> simp_all <;> grind
 
 @[simp]
 theorem coe_add [AddZeroClass α] {f g : LFinsupp α} : ⇑(f + g) = f + g := funext (add_apply f g)
@@ -239,16 +249,13 @@ theorem single_neg [NegZeroClass G] {a : G} : single n (-a) = -single n a := by
   ext; simp [single_apply, neg_ite]
 
 instance [SubNegZeroMonoid G] : Sub (LFinsupp G) where
-  sub := Quot.lift₂ (fun a b => mk <| .zipWithAll (fun x y => x.getD 0 - y.getD 0) a b) (by
-    intro a b _ rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all) (by
-    intro a _ b rfl; ext
-    simp [List.getElem?_zipWithAll, List.getElem?_append, List.getElem?_singleton]
-    (repeat' split) <;> simp_all)
+  sub := Quot.lift₂ (fun a b => mk <| .zipWithRest (· - ·) id (.map (-·)) a b)
+    (by intro a b _ rfl; ext; simp [List.getElem?_append]; split_ifs <;> simp_all <;> grind)
+    (by intro a _ b rfl; ext; simp [List.getElem?_append]; split_ifs <;> simp_all <;> grind)
 
 theorem sub_apply [SubNegZeroMonoid G] (f g : LFinsupp G) (n : ℕ) : (f - g) n = f n - g n := by
-  cases f; cases g; change Option.getD _ 0 = _; simp [List.getElem?_zipWithAll]; split <;> simp_all
+  cases f; cases g; change Option.getD _ 0 = _; simp [List.getElem?_append, ite_and]
+  split_ifs <;> simp_all <;> grind [neg_zero]
 
 @[simp]
 theorem coe_sub [SubNegZeroMonoid G] {f g : LFinsupp G} : ⇑(f - g) = f - g := funext (sub_apply f g)
@@ -412,8 +419,8 @@ theorem mk_out [Zero α] [DecidablePred fun x : α => x = 0] (f : LFinsupp α) :
   simp [List.eq_replicate_length]; intro b hb
   simpa using l.mem_rtakeWhile_imp hb
 
-/-- Remove trailing zeros from the internal representation. Propositionally it has no
-effect (see `trim_eq`), but may improve performance in algorithms. -/
+/-- Remove trailing zeros from the internal representation. Propositionally it makes no
+difference (see `trim_eq`), but may improve runtime performance. -/
 def trim [Zero α] [DecidablePred fun x : α => x = 0] (f : LFinsupp α) : LFinsupp α := mk f.out
 
 @[simp]

@@ -233,8 +233,8 @@ instance [Semiring R] : Mul R[X] where
 
 theorem mk_mul [Semiring R] {l : List R} {q : R[X]} :
   mk (.mk l) * q = (l.mapIdx fun i a => (a • q) <<< i).sum := by
-  unfold HMul.hMul instHMul Mul.mul instMul LFinsupp.mk; simp; rw [Quot.liftOn_mk]
-  simp [List.sum_eq_foldl, List.mapIdx_eq_zipIdx_map, List.foldl_map, List.foldlIdx_eq_foldl_zipIdx]
+  change List.foldlIdx _ _ _ = _; simp [List.sum_eq_foldl, List.mapIdx_eq_zipIdx_map,
+    List.foldl_map, List.foldlIdx_eq_foldl_zipIdx]
 
 open Finset in
 theorem coeff_mul [Semiring R] {p q : R[X]} : (p * q).coeff n =
@@ -265,13 +265,13 @@ instance [Semiring R] : Semiring R[X] where
            ∑ x ∈ antidiagonal n, ∑ i ∈ antidiagonal x.2, p.coeff (x.1 + 0) * _
     generalize 0 = k
     induction n generalizing k with
-    | zero => simp
+    | zero => rfl
     | succ n ih => simp [Nat.sum_antidiagonal_succ, sum_add_distrib, add_assoc, ih]
   one_mul p := by cases p; simp [one_def, single_def, mk_mul]
   mul_one c := by
     ext; simp [coeff_mul, single_apply]; rw [← Finset.Nat.sum_antidiagonal_swap]
     simp [Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
-  zero_mul p := by ext; simp [coeff_mul]
+  zero_mul p := rfl
   mul_zero p := by ext; simp [coeff_mul]
   left_distrib p q r := by ext; simp [coeff_mul, mul_add, Finset.sum_add_distrib]
   right_distrib p q r := by ext; simp [coeff_mul, add_mul, Finset.sum_add_distrib]
@@ -447,11 +447,11 @@ def linearEquivPolynomial (R) [Semiring R] [DecidablePred fun x : R => x ≠ 0] 
   right_inv P := by simp
 
 @[simp]
-theorem coe_linearEquivPolynomial_apply [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+theorem coe_linearEquivPolynomial [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
     ⇑(linearEquivPolynomial R) = equivPolynomial R := rfl
 
 @[simp]
-theorem coe_linearEquivPolynomial_symm_apply [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
+theorem coe_linearEquivPolynomial_symm [Semiring R] [DecidablePred fun x : R => x ≠ 0] :
     ⇑(linearEquivPolynomial R).symm = (equivPolynomial R).symm := rfl
 
 instance [Semiring R] [NoZeroDivisors R] : NoZeroDivisors R[X] := by
@@ -472,8 +472,8 @@ def out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : List R := p
 theorem mk_out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : mk (.mk p.out) = p := by
   simp [out, LFinsupp.mk_out]
 
-/-- Remove trailing zeros from the polynomial's internal representation. Propositionally it has no
-effect (see `trim_eq`), but may improve performance in algorithms. -/
+/-- Remove trailing zeros from the polynomial's internal representation. Propositionally it makes
+no difference (see `trim_eq`), but may improve runtime performance. -/
 def trim [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : R[X] := mk (.mk p.out)
 
 @[simp]
