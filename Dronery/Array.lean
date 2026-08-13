@@ -66,6 +66,27 @@ abbrev lall [AndOp α] [Zero α] [Complement α] (as : Array α) := as.foldl (·
 /-- Bitwise XOR (`^^^`) of all elements of `as` (assumes `0` is the identity). -/
 abbrev xor [XorOp α] [Zero α] (as : Array α) := as.foldl (· ^^^ ·) 0
 
+/-! ## Random lemmas -/
+
+@[simp]
+theorem idxOf_toList [BEq α] {as : Array α} {a : α} : as.toList.idxOf a = as.idxOf a :=
+  as.rec fun _ => List.idxOf_toArray.symm
+
+@[simp]
+theorem getElem_idxOf [BEq α] [LawfulBEq α] {as : Array α} {a : α} (h : as.idxOf a < as.size) :
+    as[as.idxOf a] = a := by cases as; simp
+
+/-- Unsafe implementation of `attachFin` making use of the fact that `Nat` and `Fin n` have the
+same memory layout, and thus so do `Array Nat` and `Array (Fin n)`. -/
+@[inline]
+unsafe def attachFinImpl (xs : Array ℕ) {n : ℕ} (_ : ∀ a ∈ xs, a < n) : Array (Fin n) :=
+  unsafeCast xs
+
+/-- Turns a list of numbers, all smaller than `n`, into a list of `Fin n`s.
+`O(1)` (a no-op, in fact). -/
+@[implemented_by attachFinImpl]
+def attachFin (xs : Array ℕ) {n : ℕ} (h : ∀ a ∈ xs, a < n) : Array (Fin n) := xs.pmap Fin.mk h
+
 /-! ## Operations with acces to indices
 (why are there so many of these) -/
 
@@ -239,6 +260,10 @@ theorem foldlIdx_empty {f : ℕ → β → α → β} {init : β} : #[].foldlIdx
 @[simp]
 theorem foldlIdx_push {f : ℕ → β → α → β} {init : β} {as : Array α} {a : α} :
     (as.push a).foldlIdx f init = f as.size (as.foldlIdx f init) a := foldlIdxM_push
+
+theorem foldlIdx_map {f : α₁ → α₂} {as : Array α₁} {g : ℕ → β → α₂ → β} {init : β} :
+    (as.map f).foldlIdx g init = as.foldlIdx (fun i acc a => g i acc (f a)) init := by
+  cases as; simpa using List.foldlIdx_map
 
 theorem foldlIdx_eq_foldl_zipIdx {f : ℕ → β → α → β} {init : β} {as : Array α} :
     as.foldlIdx f init = as.zipIdx.foldl (fun b ai => f ai.snd b ai.fst) init := by

@@ -83,6 +83,17 @@ abbrev lall [AndOp α] [Zero α] [Complement α] (l : List α) := l.foldl (· &&
 /-- Bitwise XOR (`^^^`) of all elements of `l` (assumes `0` is the identity). -/
 abbrev xor [XorOp α] [Zero α] (l : List α) := l.foldl (· ^^^ ·) 0
 
+/-- Unsafe implementation of `attachFin` making use of the fact that `Nat` and `Fin n` have the
+same memory layout, and thus so do `List Nat` and `List (Fin n)`. -/
+@[inline]
+unsafe def attachFinImpl (l : List ℕ) {n : ℕ} (_ : ∀ a ∈ l, a < n) : List (Fin n) :=
+  unsafeCast l
+
+/-- Turns a list of numbers, all smaller than `n`, into a list of `Fin n`s.
+`O(1)` (a no-op, in fact). -/
+@[implemented_by attachFinImpl]
+def attachFin (l : List ℕ) {n : ℕ} (h : ∀ a ∈ l, a < n) : List (Fin n) := l.pmap Fin.mk h
+
 /-! ## Operations with acces to indices
 (why are there so many of these) -/
 
@@ -152,11 +163,6 @@ theorem foldlIdxM'_eq_foldlM_zipIdx [Monad m] [LawfulMonad m] {f : ℕ → β �
     l.foldlIdxM' f i = l.zipIdx.foldlM (fun b ai => f ai.snd b ai.fst) i := by
   induction l generalizing i f with simp_all [zipIdx_eq_map_add (i := 1), foldlM_map, Nat.add_comm]
 
-theorem foldlIdx_eq_foldlIdxM' {f : ℕ → β → α → β} :
-    foldlIdx f i l = Id.run (foldlIdxM' (fun i acc a => pure (f i acc a)) i l) := by
-  change _ = Id.run (foldlIdxM' (fun i acc a => pure (f (i + 0) acc a)) i l); generalize 0 = s
-  induction l generalizing i s with simp_all <;> lia
-
 /-- Fold a list from left to right as with `foldl`, but the combining function also receives each
 element's index alongside a proof that the index is valid. -/
 @[inline]
@@ -177,6 +183,15 @@ theorem foldlFinIdx_concat {l : List α} {a : α} {f : (i : ℕ) → β → α �
     {init : β} : (l ++ [a]).foldlFinIdx f init
     = f l.length (l.foldlFinIdx (fun i acc a h => f i acc a (by simp; lia)) init) a (by simp) :=
   foldlFinIdxM_concat
+
+theorem foldlIdx_eq_foldlIdxM' {l : List α} {f : ℕ → β → α → β} {init : β} :
+    l.foldlIdx f init = Id.run (l.foldlIdxM' (fun i acc a => pure (f i acc a)) init) := by
+  change _ = Id.run (foldlIdxM' (fun i acc a => pure (f (i + 0) acc a)) init l); generalize 0 = s
+  induction l generalizing init s with simp_all <;> lia
+
+theorem foldlIdx_map {f : α₁ → α₂} {l : List α₁} {g : ℕ → β → α₂ → β} {init : β} :
+    (l.map f).foldlIdx g init = l.foldlIdx (fun i acc a => g i acc (f a)) init := by
+  induction l generalizing g init with simp_all [foldlIdx_start (s := 1)]
 
 /-- Monadic variant of `foldrFinIdx`. -/
 @[inline]
