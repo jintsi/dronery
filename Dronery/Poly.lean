@@ -5,7 +5,9 @@ import Dronery.List
 
 /-! # Computable univariate polynomials -/
 
-/-- `CPoly R` is the type of univariate polynomials over `R`, denoted `R[X]` within the `CPoly`
+namespace Dronery
+
+/-- `CPoly R` is the type of univariate polynomials over `R`, denoted `R[X]` within the `Dronery`
 namespace.
 
 Just like `Polynomial R`, it features `X` and `C` as constructors, but unlike `Polynomial R`, it is
@@ -14,11 +16,11 @@ structure CPoly (R) [Semiring R] where
   coeff : LFinsupp R
 deriving Inhabited, DecidableEq
 
+scoped notation:9000 R "[X]" => CPoly R
+
 namespace CPoly
 
 open LFinsupp
-
-scoped notation:9000 R "[X]" => CPoly R
 
 @[ext]
 theorem ext [Semiring R] {p q : R[X]} (h : ∀ n, p.coeff n = q.coeff n) : p = q :=
@@ -469,6 +471,7 @@ instance [Semiring R] [IsCancelAdd R] [IsDomain R] : IsDomain R[X] where
 
 def out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : List R := p.coeff.out
 
+@[simp]
 theorem mk_out [Semiring R] [DecidablePred fun x : R => x = 0] (p : R[X]) : mk (.mk p.out) = p := by
   simp [out, LFinsupp.mk_out]
 

@@ -4,6 +4,8 @@ import Mathlib.Algebra.Module.Equiv.Defs
 import Mathlib.Data.Finsupp.SMul
 import Mathlib.Data.List.DropRight
 
+/-! # List-based `ℕ →₀ α` -/
+
 /-- Applies a function to the corresponding elements of both list, stopping when one of them runs
 out, applying `left` or `right` to the remainder of the second list if it's longer. -/
 def List.zipWithRest (f : α → β → γ) (left : List α → List γ) (right : List β → List γ) :
@@ -39,6 +41,8 @@ theorem List.zipWithRest_eq_zipWith_append {left : List α → List γ} {right :
 | a :: as, [] => rfl
 | [], b :: bs => rfl
 | a :: as, b :: bs => by rw [zipWithRest, zipWithRest_eq_zipWith_append]; simp
+
+namespace Dronery
 
 /-- The type of finitely supported functions from `ℕ` to `α`, implemented as `List α` quotiented by
 the presence of trailing zeros. -/
@@ -412,6 +416,7 @@ theorem coe_linearEquivFinsupp_symm_apply [Semiring R] [DecidablePred fun x : R 
 def out [Zero α] [DecidablePred fun x : α => x = 0] : LFinsupp α → List α :=
   Quot.lift (fun l => l.rdropWhile (· = 0)) (by intro l _ rfl; simp)
 
+@[simp]
 theorem mk_out [Zero α] [DecidablePred fun x : α => x = 0] (f : LFinsupp α) : mk f.out = f := by
   cases f; rename_i l; simp [out, eq_iff]
   use (l.rtakeWhile (· = 0)).length; right; symm

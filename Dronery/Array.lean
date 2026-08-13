@@ -2,6 +2,13 @@ import Dronery.List
 
 namespace Array
 
+@[elab_as_elim]
+theorem pushInduction {motive : Array α → Prop} (as : Array α) (empty : motive #[])
+    (push : ∀ as a, motive as → motive (as.push a)) : motive as := by
+  rcases as with ⟨l⟩; induction l using List.revInduction with
+  | nil => exact empty
+  | concat l a ih => simpa using push ⟨l⟩ a ih
+
 /-- Construct an array of numbers from `n-1` to `0` in decreasing order. -/
 def revRange (n : Nat) : Array Nat := ofFn (n := n) fun i => i.rev
 
@@ -37,46 +44,204 @@ theorem toList_revRange' {stop len step} :
     (revRange' stop len step).toList = List.revRange' stop len step := by
   simp [revRange'_def, List.revRange'_def]
 
+/-- Computes the sum of `f` applied to elements of the array. Note that it does a left fold,
+as opposed to `Array.sum` which does a right fold. -/
+abbrev sumOn [Add β] [Zero β] (f : α → β) := Array.foldl (fun acc a => acc + f a) 0
+
+theorem sumOn_def [Add β] [Zero β] {f : α → β} {as : Array α} :
+    as.sumOn f = (as.map f).foldl (· + ·) 0 := foldl_map.symm
+
+@[simp]
+theorem sumOn_eq_sum_map [AddMonoid β] {f : α → β} {as : Array α} : as.sumOn f = (as.map f).sum := by
+  rw [sumOn_def]; symm; exact sum_eq_foldl
+
+theorem sumOn_id [AddMonoid α] {as : Array α} : as.sumOn id = as.sum := by simp
+
+/-- Bitwise OR (`|||`) of all elements of `as` (assumes `0` is the identity). -/
+abbrev lany [OrOp α] [Zero α] (as : Array α) := as.foldl (· ||| ·) 0
+
+/-- Bitwise AND (`&&&`) of all elements of `as` (assumes `~~~0` is the identity). -/
+abbrev lall [AndOp α] [Zero α] [Complement α] (as : Array α) := as.foldl (· &&& ·) (~~~0)
+
+/-- Bitwise XOR (`^^^`) of all elements of `as` (assumes `0` is the identity). -/
+abbrev xor [XorOp α] [Zero α] (as : Array α) := as.foldl (· ^^^ ·) 0
+
+/-! ## Operations with acces to indices
+(why are there so many of these) -/
+
+/-- See comment at `forIn'Unsafe`.
+The in-bounds proof is supplied by `lcProof`, paralleling `mapFinIdxMUnsafe`. -/
+@[inline]
+unsafe def foldlFinIdxMUnsafe [Monad m] (as : Array α) (f : (i : ℕ) → β → α → i < as.size → m β)
+    (init : β) : m β :=
+  let rec @[specialize] fold (i : USize) (stop : USize) (b : β) : m β := do
+    if i == stop then pure b
+    else fold (i+1) stop (← f i.toNat b (as.uget i lcProof) lcProof)
+  fold 0 (.ofNat as.size) init
+
+/-- Fold an array from left to right as with `foldlM`, but the combining function also receives
+each element's index as a parameter alongside a proof that the index is in bounds.
+Monadic variant of `foldlFinIdxM`. -/
+-- Screw reference implementations, just defer to `List`.
+@[implemented_by foldlFinIdxMUnsafe]
+def foldlFinIdxM [Monad m] (as : Array α) (f : (i : ℕ) → β → α → i < as.size → m β) (init : β) :=
+  as.toList.foldlFinIdxM f init
+
+@[simp]
+theorem _root_.List.foldlFinIdxM_toArray [Monad m] {l : List α}
+    {f : (i : ℕ) → β → α → i < l.length → m β} {init : β} :
+    l.toArray.foldlFinIdxM f init = l.foldlFinIdxM f init := rfl
+
+@[simp]
+theorem foldlFinIdxM_empty [Monad m] {f : (i : ℕ) → β → α → i < 0 → m β} {init : β} :
+    #[].foldlFinIdxM f init = pure init := rfl
+
+@[simp]
+theorem foldlFinIdxM_push [Monad m] [LawfulMonad m] {as : Array α} {a : α}
+    {f : (i : ℕ) → β → α → i < (as.push a).size → m β} {init : β} : (as.push a).foldlFinIdxM f init
+    = as.foldlFinIdxM (fun i acc a h => f i acc a (by simp; lia)) init >>= fun b =>
+      f as.size b a (by simp) := by
+  cases as; eta_expand; simp [push]; rw! [List.concat_eq_append]; simp; rfl
+
+/-- See comment at `forIn'Unsafe`.
+The in-bounds proof is supplied by `lcProof`, paralleling `mapFinIdxMUnsafe`. -/
+@[inline]
+unsafe def foldrFinIdxMUnsafe [Monad m] (as : Array α) (f : (i : ℕ) → α → β → i < as.size → m β)
+    (init : β) : m β :=
+  let rec @[specialize] fold (i : USize) (stop : USize) (b : β) : m β := do
+    if i == stop then pure b
+    else fold (i-1) stop (← f (i-1).toNat (as.uget (i-1) lcProof) b lcProof)
+  fold (.ofNat as.size) 0 init
+
+/-- Fold an array from right to left as with `foldrM`, but the combining function also receives
+each element's index as a parameter alongside a proof that the index is in bounds.
+Monadic variant of `foldrFinIdxM`. -/
+-- Screw reference implementations, just defer to `List`.
+@[implemented_by foldrFinIdxMUnsafe]
+def foldrFinIdxM [Monad m] (as : Array α) (f : (i : ℕ) → α → β → i < as.size → m β) (init : β) :=
+  as.toList.foldrFinIdxM f init
+
+@[simp]
+theorem _root_.List.foldrFinIdxM_toArray [Monad m] {l : List α}
+    {f : (i : ℕ) → α → β → i < l.length → m β} {init : β} :
+    l.toArray.foldrFinIdxM f init = l.foldrFinIdxM f init := rfl
+
+@[simp]
+theorem foldrFinIdxM_empty [Monad m] {f : (i : ℕ) → α → β → i < 0 → m β} {init : β} :
+    #[].foldrFinIdxM f init = pure init := rfl
+
+@[simp]
+theorem foldrFinIdxM_push [Monad m] {as : Array α} {a : α}
+    {f : (i : ℕ) → α → β → i < (as.push a).size → m β} {init : β} :
+    (as.push a).foldrFinIdxM f init = f as.size a init (by simp) >>= fun b =>
+      as.foldrFinIdxM (fun i a acc h => f i a acc (by simp; lia)) b := by
+  cases as; eta_expand; simp [push]; rw! [List.concat_eq_append]; simp; rfl
+
 /-- Fold an array from left to right as with `foldlM`, but the combining function also receives
 each element's index as a parameter. Monadic variant of `foldlIdx`. -/
 @[inline]
 def foldlIdxM [Monad m] (f : ℕ → β → α → m β) (init : β) (as : Array α) : m β :=
-  Prod.snd <$> as.foldlM (fun (n, acc) a => Prod.mk n.succ <$> f n acc a) (0, init)
+  as.foldlFinIdxM (fun i acc a _ => f i acc a) init
 
 @[simp]
-theorem _root_.List.foldlIdxM_toArray [Monad m] (f : ℕ → β → α → m β) (init : β) (l : List α) :
-    l.toArray.foldlIdxM f init = l.foldlIdxM' f init := by unfold foldlIdxM List.foldlIdxM'; simp
+theorem _root_.List.foldlIdxM_toArray [Monad m] {f : ℕ → β → α → m β} {init : β} {l : List α} :
+    l.toArray.foldlIdxM f init = l.foldlIdxM' f init := rfl
 
-theorem foldlIdxM_eq_foldlM_zipIdx [Monad m] [LawfulMonad m] {f : ℕ → β → α → m β} {as : Array α} :
-    as.foldlIdxM f i = as.zipIdx.foldlM (fun b ai => f ai.snd b ai.fst) i := by
+@[simp]
+theorem foldlIdxM_empty [Monad m] {f : ℕ → β → α → m β} {init : β} :
+    #[].foldlIdxM f init = pure init := rfl
+
+@[simp]
+theorem foldlIdxM_push [Monad m] [LawfulMonad m] {f : ℕ → β → α → m β} {init : β} {as : Array α}
+    {a : α} : (as.push a).foldlIdxM f init = as.foldlIdxM f init >>= fun b => f as.size b a :=
+  foldlFinIdxM_push
+
+theorem foldlIdxM_eq_foldlM_zipIdx [Monad m] [LawfulMonad m] {f : ℕ → β → α → m β} {init : β}
+    {as : Array α} : as.foldlIdxM f init = as.zipIdx.foldlM (fun b ai => f ai.snd b ai.fst) init := by
   cases as; simp; apply List.foldlIdxM'_eq_foldlM_zipIdx
 
 /-- Fold an array from right to left as with `foldrM`, but the combining function also receives
 each element's index as a parameter. Monadic variant of `foldrIdx`. -/
 @[inline]
 def foldrIdxM [Monad m] (f : ℕ → α → β → m β) (init : β) (as : Array α) : m β :=
-  Prod.snd <$> as.foldrM (fun a (n, acc) => Prod.mk n.pred <$> f n.pred a acc) (as.size, init)
+  as.foldrFinIdxM (fun i a acc _ => f i a acc) init
 
 @[simp]
-theorem _root_.List.foldrIdxM_toArray [Monad m] (f : ℕ → α → β → m β) (init : β) (l : List α) :
-    l.toArray.foldrIdxM f init = l.foldrIdxM' f init := by unfold foldrIdxM List.foldrIdxM'; simp
+theorem _root_.List.foldrIdxM_toArray [Monad m] {f : ℕ → α → β → m β} {init : β} {l : List α} :
+    l.toArray.foldrIdxM f init = l.foldrIdxM' f init := rfl
+
+@[simp]
+theorem foldrIdxM_empty [Monad m] {f : ℕ → α → β → m β} {init : β} :
+    #[].foldrIdxM f init = pure init := rfl
+
+@[simp]
+theorem foldrIdxM_push [Monad m] {f : ℕ → α → β → m β} {init : β} {as : Array α} {a : α} :
+    (as.push a).foldrIdxM f init = f as.size a init >>= fun b => as.foldrIdxM f b :=
+  foldrFinIdxM_push
 
 theorem foldrIdxM_eq_foldrM_zipIdx [Monad m] [LawfulMonad m] {f : ℕ → α → β → m β} {as : Array α} :
     as.foldrIdxM f i = as.zipIdx.foldrM (fun ai b => f ai.snd ai.fst b) i := by
   cases as; simp; apply List.foldrIdxM'_eq_foldrM_zipIdx
 
 /-- Fold an array from left to right as with `foldl`, but the combining function also receives
+each element's index as a parameter alongside a proof that the index is in bounds. -/
+@[inline]
+def foldlFinIdx (as : Array α) (f : (i : ℕ) → β → α → i < as.size → β) (init : β) : β :=
+  Id.run <| as.foldlFinIdxM (fun i acc a h => pure (f i acc a h)) init
+
+@[simp]
+theorem _root_.List.foldlFinIdx_toArray {l : List α} {f : (i : ℕ) → β → α → i < l.length → β}
+    {init : β} : l.toArray.foldlFinIdx f init = l.foldlFinIdx f init := rfl
+
+@[simp]
+theorem foldlFinIdx_empty {f : (i : ℕ) → β → α → i < 0 → β} {init : β} :
+    #[].foldlFinIdx f init = init := rfl
+
+@[simp]
+theorem foldlFinIdx_push {as : Array α} {a : α} {f : (i : ℕ) → β → α → i < (as.push a).size → β}
+    {init : β} : (as.push a).foldlFinIdx f init =
+      f as.size (as.foldlFinIdx (fun i acc a h => f i acc a (by simp; lia)) init) a (by simp) :=
+  foldlFinIdxM_push
+
+/-- Fold an array from right to left as with `foldr`, but the combining function also receives
+each element's index as a parameter alongside a proof that the index is in bounds. -/
+@[inline]
+def foldrFinIdx (as : Array α) (f : (i : ℕ) → α → β → i < as.size → β) (init : β) : β :=
+  Id.run <| as.foldrFinIdxM (fun i a acc h => pure (f i a acc h)) init
+
+@[simp]
+theorem _root_.List.foldrFinIdx_toArray {l : List α} {f : (i : ℕ) → α → β → i < l.length → β}
+    {init : β} : l.toArray.foldrFinIdx f init = l.foldrFinIdx f init := rfl
+
+@[simp]
+theorem foldrFinIdx_empty {f : (i : ℕ) → α → β → i < 0 → β} {init : β} :
+    #[].foldrFinIdx f init = init := rfl
+
+@[simp]
+theorem foldrFinIdx_push {as : Array α} {a : α} {f : (i : ℕ) → α → β → i < (as.push a).size → β}
+    {init : β} : (as.push a).foldrFinIdx f init =
+      as.foldrFinIdx (fun i a acc h => f i a acc (by simp; lia)) (f as.size a init (by simp)) :=
+  foldrFinIdxM_push
+
+/-- Fold an array from left to right as with `foldl`, but the combining function also receives
 each element's index as a parameter. -/
 @[inline]
 def foldlIdx (f : ℕ → β → α → β) (init : β) (as : Array α) : β :=
-  Id.run <| foldlIdxM (fun n b a => pure (f n b a)) init as
+  Id.run <| as.foldlIdxM (fun i acc a => pure (f i acc a)) init
 
 @[simp]
-theorem _root_.List.foldlIdx_toArray {l : List α} : l.toArray.foldlIdx f i = l.foldlIdx f i := by
-  unfold foldlIdx; simp; generalize 0 = s; induction l generalizing i s with simp_all
+theorem _root_.List.foldlIdx_toArray {f : ℕ → β → α → β} {init : β} {l : List α} :
+    l.toArray.foldlIdx f init = l.foldlIdx f init := List.foldlIdx_eq_foldlIdxM'.symm
 
-theorem foldlIdx_eq_foldl_zipIdx {as : Array α} :
-    as.foldlIdx f i = as.zipIdx.foldl (fun b ai => f ai.snd b ai.fst) i := by
+@[simp]
+theorem foldlIdx_empty {f : ℕ → β → α → β} {init : β} : #[].foldlIdx f init = init := rfl
+
+@[simp]
+theorem foldlIdx_push {f : ℕ → β → α → β} {init : β} {as : Array α} {a : α} :
+    (as.push a).foldlIdx f init = f as.size (as.foldlIdx f init) a := foldlIdxM_push
+
+theorem foldlIdx_eq_foldl_zipIdx {f : ℕ → β → α → β} {init : β} {as : Array α} :
+    as.foldlIdx f init = as.zipIdx.foldl (fun b ai => f ai.snd b ai.fst) init := by
   cases as; simp; apply List.foldlIdx_eq_foldl_zipIdx
 
 /-- Fold an array from right to left as with `foldr`, but the combining function also receives
@@ -86,11 +251,18 @@ def foldrIdx (f : ℕ → α → β → β) (init : β) (as : Array α) : β :=
   Id.run <| foldrIdxM (fun n a b => pure (f n a b)) init as
 
 @[simp]
-theorem _root_.List.foldrIdx_toArray {l : List α} : l.toArray.foldrIdx f i = l.foldrIdx f i := by
-  unfold foldrIdx; simp; generalize 0 = s; induction l generalizing i s with simp_all
+theorem _root_.List.foldrIdx_toArray {f : ℕ → α → β → β} {init : β} {l : List α} :
+    l.toArray.foldrIdx f init = l.foldrIdx f init := List.foldrIdx_eq_foldrIdxM'.symm
 
-theorem foldrIdx_eq_foldr_zipIdx {as : Array α} :
-    as.foldrIdx f i = as.zipIdx.foldr (fun ai b => f ai.snd ai.fst b) i := by
+@[simp]
+theorem foldrIdx_empty {f : ℕ → α → β → β} {init : β} : #[].foldrIdx f init = init := rfl
+
+@[simp]
+theorem foldrIdx_push {f : ℕ → α → β → β} {init : β} {as : Array α} {a : α} :
+    (as.push a).foldrIdx f init = as.foldrIdx f (f as.size a init) := foldrIdxM_push
+
+theorem foldrIdx_eq_foldr_zipIdx {f : ℕ → α → β → β} {init : β} {as : Array α} :
+    as.foldrIdx f init = as.zipIdx.foldr (fun ai b => f ai.snd ai.fst b) init := by
   cases as; simp; apply List.foldrIdx_eq_foldr_zipIdx
 
 /-- Applies a monadic function that returns an `Option` to each element of an array along with the
@@ -120,25 +292,3 @@ theorem filterMapIdx_eq_filterMap_zipIdx {f : ℕ → α → Option β} {as : Ar
     as.filterMapIdx f = as.zipIdx.filterMap fun ai => f ai.snd ai.fst := by
   rw [filterMap, ← filterMapIdxM_eq_filterMapM_zipIdx (f := fun i a => pure (f i a)),
     filterMapIdxM, filterMapIdx, foldlIdx]; simp_rw [map_pure]
-
-/-- Computes the sum of `f` applied to elements of the array. Note that it does a left fold,
-as opposed to `Array.sum` which does a right fold. -/
-abbrev sumOn [Add β] [Zero β] (f : α → β) := Array.foldl (fun acc a => acc + f a) 0
-
-theorem sumOn_def [Add β] [Zero β] {f : α → β} {as : Array α} :
-    as.sumOn f = (as.map f).foldl (· + ·) 0 := foldl_map.symm
-
-@[simp]
-theorem sumOn_eq_sum_map [AddMonoid β] {f : α → β} {as : Array α} : as.sumOn f = (as.map f).sum := by
-  rw [sumOn_def]; symm; exact sum_eq_foldl
-
-theorem sumOn_id [AddMonoid α] {as : Array α} : as.sumOn id = as.sum := by simp
-
-/-- Bitwise OR (`|||`) of all elements of `as` (assumes `0` is the identity). -/
-abbrev lany [OrOp α] [Zero α] (as : Array α) := as.foldl (· ||| ·) 0
-
-/-- Bitwise AND (`&&&`) of all elements of `as` (assumes `~~~0` is the identity). -/
-abbrev lall [AndOp α] [Zero α] [Complement α] (as : Array α) := as.foldl (· &&& ·) (~~~0)
-
-/-- Bitwise XOR (`^^^`) of all elements of `as` (assumes `0` is the identity). -/
-abbrev xor [XorOp α] [Zero α] (as : Array α) := as.foldl (· ^^^ ·) 0

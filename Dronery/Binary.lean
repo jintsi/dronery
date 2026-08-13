@@ -9,7 +9,8 @@ theorem Nat.lt_two_pow_bitLength (n : Nat) : n < 2 ^ n.bitLength := by
   · exact lt_log2_self
 
 /-- The ruler sequence, or highest power of 2 dividing `n`, or the number of zeroes at the end of
-`n`'s binary representation: 0 1 0 2 0 1 0 3 0 1 0 2 0 1 0 4... (A007814, starting from n = 1). -/
+`n`'s binary representation: 0 1 0 2 0 1 0 3 0 1 0 2 0 1 0 4... (A007814, starting from n = 1).
+For n = 0 returns 0. -/
 def Nat.ruler (n : Nat) : Nat := n.binaryRec 0 fun b _ ih => bif b then 0 else ih + 1
 
 notation "A007814" => Nat.ruler
