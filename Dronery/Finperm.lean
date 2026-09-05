@@ -1,5 +1,6 @@
 import Dronery.Permutation
-import Mathlib.Logic.Embedding.Basic
+import Mathlib.Algebra.Group.End
+import Mathlib.Data.List.FinRange
 
 namespace Dronery
 
@@ -106,3 +107,15 @@ instance : Group (Finperm n) where
   one_mul p := by ext; simp
   mul_one p := by ext; simp
   inv_mul_cancel p := by ext; simp
+
+@[simps apply_apply apply_symm_apply]
+def equivPerm : Finperm n ≃* Equiv.Perm (Fin n) where
+  toFun p := ⟨p, (p⁻¹ : Finperm n), p.inv_apply_apply, p.apply_inv_apply⟩
+  invFun e := mk' (Array.ofFn fun i => e i) (by
+    simp [Array.perm_iff_toList_perm, ← List.ofFn_val]; exact e.ofFn_comp_perm Fin.val)
+  left_inv p := by ext; simp [coe_applyFin]
+  right_inv e := by ext; simp [coe_applyFin]
+  map_mul' p q := by ext; simp
+
+theorem equivPerm_symm_apply_apply (e : Equiv.Perm (Fin n)) (a : Fin n) :
+    equivPerm.symm e a = e a := by ext; simp [equivPerm, coe_applyFin]

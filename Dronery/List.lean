@@ -94,6 +94,12 @@ unsafe def attachFinImpl (l : List ℕ) {n : ℕ} (_ : ∀ a ∈ l, a < n) : Lis
 @[implemented_by attachFinImpl]
 def attachFin (l : List ℕ) {n : ℕ} (h : ∀ a ∈ l, a < n) : List (Fin n) := l.pmap Fin.mk h
 
+@[simp]
+theorem ofFn_val {n : ℕ} : ofFn (fun i : Fin n => i.val) = range n := by
+  induction n
+  · simp
+  · rw [ofFn_succ_last]; simp_all [range_succ]
+
 /-! ## Operations with acces to indices
 (why are there so many of these) -/
 
