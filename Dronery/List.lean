@@ -60,19 +60,24 @@ theorem revRange'_def {stop len step : Nat} :
   | succ l ih => rw [revRange'.go, l.add_comm, ← i.add_assoc, ← ih, Nat.mul_add_one, Nat.add_assoc,
     range'_concat]; simp
 
-/-- Computes the sum of `f` applied to elements of the list. Note that it does a left fold,
-as opposed to regular `List.sum` which does a right fold. -/
-@[specialize]
-def sumOn [Add β] [Zero β] (f : α → β) := List.foldl (fun acc a => acc + f a) 0
+attribute [to_additive existing] prod prod_eq_foldl
 
-theorem sumOn_def [Add β] [Zero β] {f : α → β} {l : List α} :
-    l.sumOn f = (l.map f).foldl (· + ·) 0 := foldl_map.symm
+/-- Computes the product of `f` applied to elements of the list. Note that it does a left fold,
+as opposed to regular `List.prod` which does a right fold. -/
+@[to_additive (attr := specialize) /-- Computes the sum of `f` applied to elements of the list.
+Note that it does a left fold, as opposed to regular `List.sum` which does a right fold. -/]
+def prodOn [Mul β] [One β] (f : α → β) := List.foldl (fun acc a => acc * f a) 1
 
-@[simp]
-theorem sumOn_eq_sum_map [AddMonoid β] {f : α → β} {l : List α} : l.sumOn f = (l.map f).sum := by
-  rw [sumOn_def]; symm; exact sum_eq_foldl
+@[to_additive]
+theorem prodOn_def [Mul β] [One β] {f : α → β} {l : List α} :
+    l.prodOn f = (l.map f).foldl (· * ·) 1 := foldl_map.symm
 
-theorem sumOn_id [AddMonoid α] {l : List α} : l.sumOn id = l.sum := by simp
+@[to_additive (attr := simp)]
+theorem prodOn_eq_prod_map [Monoid β] {f : α → β} {l : List α} : l.prodOn f = (l.map f).prod := by
+  rw [prodOn_def]; symm; exact prod_eq_foldl
+
+@[to_additive]
+theorem prodOn_id [Monoid α] {l : List α} : l.prodOn id = l.prod := by simp
 
 /-- Bitwise OR (`|||`) of all elements of `l` (assumes `0` is the identity). -/
 abbrev lany [OrOp α] [Zero α] (l : List α) := l.foldl (· ||| ·) 0

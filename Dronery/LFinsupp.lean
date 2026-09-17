@@ -372,10 +372,10 @@ def equivFinsupp (α) [Zero α] [DecidablePred fun x : α => x ≠ 0] : LFinsupp
   invFun f := mk (List.ofFn fun n : Fin f.support.max.succ => f n)
   left_inv f := by
     ext n; simp [Option.getD_eq_iff, Decidable.or_iff_not_imp_left, imp_and, WithBot.succ_le_iff]
-    convert_to _ < (n : WithBot ℕ) → _; rfl; intro h; symm; simpa using Finset.notMem_of_max_lt_coe h
+    intro h; symm; simpa using Finset.notMem_of_max_lt_coe h
   right_inv f := by
     ext n; simp [Option.getD_eq_iff, Decidable.or_iff_not_imp_left, imp_and, WithBot.succ_le_iff]
-    convert_to _ < (n : WithBot ℕ) → _; rfl; intro h; symm; simpa using Finset.notMem_of_max_lt_coe h
+    intro h; symm; simpa using Finset.notMem_of_max_lt_coe h
 
 @[simp]
 theorem coe_equivFinsupp_apply [Zero α] [DecidablePred fun x : α => x ≠ 0] (f : LFinsupp α) :
