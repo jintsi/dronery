@@ -44,7 +44,7 @@ theorem toList_revRange' {stop len step} :
     (revRange' stop len step).toList = List.revRange' stop len step := by
   simp [revRange'_def, List.revRange'_def]
 
-attribute [to_additive existing] prod prod_eq_foldl prod_append prod_toList
+attribute [to_additive existing] prod prod_eq_foldl prod_append prod_toList List.prod_toArray
 
 /-- Computes the product of `f` applied to elements of the array. Note that it does a left fold,
 as opposed to `Array.prod` which does a right fold. -/
