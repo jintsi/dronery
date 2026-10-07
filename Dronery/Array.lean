@@ -58,6 +58,13 @@ theorem prodOn_def [Mul β] [One β] {f : α → β} {as : Array α} :
     as.prodOn f = (as.map f).foldl (· * ·) 1 := foldl_map.symm
 
 @[to_additive (attr := simp)]
+theorem prodOn_empty [Mul β] [One β] {f : α → β} : #[].prodOn f = 1 := rfl
+
+@[to_additive (attr := simp)]
+theorem prodOn_push [Mul β] [One β] {f : α → β} {as : Array α} {a : α} :
+    (as.push a).prodOn f = as.prodOn f * f a := Array.foldl_push
+
+@[to_additive (attr := simp)]
 theorem prodOn_eq_prod_map [Monoid β] {f : α → β} {as : Array α} :
     as.prodOn f = (as.map f).prod := by rw [prodOn_def]; symm; exact prod_eq_foldl
 

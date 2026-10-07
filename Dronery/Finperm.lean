@@ -117,5 +117,6 @@ def equivPerm : Finperm n ≃* Equiv.Perm (Fin n) where
   right_inv e := by ext; simp [coe_applyFin]
   map_mul' p q := by ext; simp
 
+@[simp]
 theorem equivPerm_symm_apply_apply (e : Equiv.Perm (Fin n)) (a : Fin n) :
     equivPerm.symm e a = e a := by ext; simp [equivPerm, coe_applyFin]
