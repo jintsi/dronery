@@ -64,7 +64,7 @@ attribute [to_additive existing] prod prod_eq_foldl
 
 /-- Computes the product of `f` applied to elements of the list. Note that it does a left fold,
 as opposed to regular `List.prod` which does a right fold. -/
-@[to_additive (attr := specialize) /-- Computes the sum of `f` applied to elements of the list.
+@[to_additive (attr := inline) /-- Computes the sum of `f` applied to elements of the list.
 Note that it does a left fold, as opposed to regular `List.sum` which does a right fold. -/]
 def prodOn [Mul β] [One β] (f : α → β) := List.foldl (fun acc a => acc * f a) 1
 

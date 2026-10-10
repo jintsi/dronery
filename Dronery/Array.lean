@@ -49,8 +49,8 @@ attribute [to_additive existing] List.prod_toArray
 
 /-- Computes the product of `f` applied to elements of the array. Note that it does a left fold,
 as opposed to `Array.prod` which does a right fold. -/
-@[to_additive /-- Computes the sum of `f` applied to elements of the array. Note that it does
-a left fold, as opposed to `Array.sum` which does a right fold. -/]
+@[to_additive (attr := inline) /-- Computes the sum of `f` applied to elements of the array.
+Note that it does a left fold, as opposed to `Array.sum` which does a right fold. -/]
 abbrev prodOn [Mul β] [One β] (f : α → β) := Array.foldl (fun acc a => acc * f a) 1
 
 @[to_additive]
